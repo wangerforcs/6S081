@@ -16,6 +16,8 @@ int main(int argc,char* argv[]){
     80 : echo
     
     out: bye h    
+
+    truely funny thing
     */
     // cant use argv as newargv, or you will modify memory in stack and get unexpected result like A= hello bye
     // because you modify string of argv[0], argv[1] and so on
