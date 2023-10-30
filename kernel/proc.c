@@ -322,6 +322,10 @@ fork(void)
   np->state = RUNNABLE;
   release(&np->lock);
 
+  acquire(&np->lock);
+  np->tracemask = p->tracemask;
+  release(&np->lock);
+
   return pid;
 }
 
