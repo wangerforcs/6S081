@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/wnger/workplace/os-lab/6S081/xv6-labs-2023/user",
-      "program": "/home/wnger/workplace/os-lab/6S081/xv6-labs-2023/user/build/Debug/outDebug",
+      "cwd": "/home/wnger/workplace/os-lab/6S081",
+      "program": "/home/wnger/workplace/os-lab/6S081/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
