@@ -110,5 +110,4 @@ struct proc {
   uint64 running_ticks;
   struct trapframe *alarm_trap_frame;
   uint8 is_processing;
-  uint64 saved_pc;
 };
