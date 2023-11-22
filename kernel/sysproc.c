@@ -121,6 +121,6 @@ sys_sigreturn(void)
   }
   p->is_processing = 0;
   p->running_ticks = 0;
-  memmove(p->trapframe,p->alarm_trap_frame,sizeof(struct trapframe));
+  *p->trapframe = *p->alarm_trap_frame;
   return 0;
 }

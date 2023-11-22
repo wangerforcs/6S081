@@ -73,7 +73,7 @@ usertrap(void)
       {
         p->running_ticks = 0;
         if(p->is_processing == 0){
-          memmove(p->alarm_trap_frame,p->trapframe,sizeof(struct trapframe));
+          *p->alarm_trap_frame = *p->trapframe;
           p->trapframe->epc = (uint64)p->alarm_handler;
           p->is_processing = 1;
         }
