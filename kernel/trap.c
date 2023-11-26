@@ -67,18 +67,6 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-    if(which_dev == 2 && p->alarm_ticks > 0){
-      p->running_ticks += 1;
-      if(p->running_ticks == p->alarm_ticks)
-      {
-        p->running_ticks = 0;
-        if(p->is_processing == 0){
-          *p->alarm_trap_frame = *p->trapframe;
-          p->trapframe->epc = (uint64)p->alarm_handler;
-          p->is_processing = 1;
-        }
-      }
-    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -129,7 +117,6 @@ usertrapret(void)
   w_sstatus(x);
 
   // set S Exception Program Counter to the saved user pc.
-  
   w_sepc(p->trapframe->epc);
 
   // tell trampoline.S the user page table to switch to.
