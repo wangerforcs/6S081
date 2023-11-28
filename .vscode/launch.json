@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/wnger/workplace/os-lab/6S081/notxv6",
-      "program": "/home/wnger/workplace/os-lab/6S081/notxv6/build/Debug/outDebug",
+      "cwd": "/home/wnger/workplace/os-lab/6S081/kernel",
+      "program": "/home/wnger/workplace/os-lab/6S081/kernel/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

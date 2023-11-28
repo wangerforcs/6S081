@@ -1,4 +1,18 @@
-看书时在一系列acquire(&p->lock)的操作纠结了好久，后来才明白。
+## thread
+
+之前未解决的问题
+tp是什么？
+the thread pointer, which xv6 uses to hold this core's hartid (core number), the index into cpus[]，实际上是存放着hartid的寄存器
+
+hartid是什么？
+运行当前代码硬件线程(hart)的ID。对软件层面来说，就是一个独立的处理器。但是实际上也有可能它不是完整的独立的一个 CPU 核心。
+
+### 上下文切换
+用户进程上下文切换的机制
+
+
+
+看书时在一系列acquire(&p->lock)的操作纠结了好久，后来才明白，在此也记录一下自己愚蠢的想法吧。
 刚开始想法是：
 yield和sleep等调用sched来使用内核scheduler进行进程切换的函数，在切换前要获取进程锁；
 而scheduler调度程序、wakeup更改进程状态也要获取进程锁，那被切换的进程还怎么唤醒和被重新调度？这不是矛盾了吗？
@@ -18,12 +32,10 @@ sets the context ra register of a new process to forkret (kernel/proc.c:515), so
 
 而这些其实文章中都有，第一次看的时候可能没太注意。而且确实模糊理解上没问题，文档中大部分也和操作系统学的差不多，本来改变进程的状态肯定就要持有锁，但深究发现自己实际上对进程调度具体机制没有很清楚，还是有点tricky的。
 
-
+但是读完其实还有些疑问：
 对于书中给出的PV操作的例子，为什么选择使用lock来保护计数，而不是采用原子加减法？
 而且明明xv6中acquire(&lock)本来就是通过test_and_set原子操作构建自旋锁，为什么还要费这么大劲去实现sleep和wakeup优化的PV操作？
-
 当然，如果对用户来说要用更高层次的函数来实现信号量，那确实可以用锁和条件变量来实现信号量，而且sleep(void *chan, struct spinlock *lk)和cond_wait(cond_t *cv, lock_t *lock)的实现也具有相似之处。
 
-proc.c文件好好看好好学
 
 

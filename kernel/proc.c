@@ -314,9 +314,11 @@ fork(void)
 
   release(&np->lock);
 
+  // acquire(&np->lock); by me, why wait_lock? not np->lock?
   acquire(&wait_lock);
   np->parent = p;
   release(&wait_lock);
+  // release(&np->lock);
 
   acquire(&np->lock);
   np->state = RUNNABLE;
