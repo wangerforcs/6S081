@@ -7,9 +7,9 @@
       "request": "launch",
       "args": [],
       "stopAtEntry": false,
-      "externalConsole": false,
-      "cwd": "/home/wnger/workplace/os-lab/6S081/kernel",
-      "program": "/home/wnger/workplace/os-lab/6S081/kernel/build/Debug/outDebug",
+      "externalConsole": true,
+      "cwd": "c:/Users/35411/Desktop/repos/xv6-labs-2023/kernel",
+      "program": "c:/Users/35411/Desktop/repos/xv6-labs-2023/kernel/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
