@@ -24,5 +24,4 @@ barrier
 /lab-*.json
 .DS_Store
 *.dSYM
-.vscode/
-__pycache__/
+*.pcap
