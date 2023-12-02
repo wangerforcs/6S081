@@ -1,0 +1,11 @@
+4
+
+这两个实验的区别是什么，为什么我感觉一样？
+第二个对bcache的lock的保留是有必要的吗？我直接当成第一个实验的代码来写不行吗？
+题目说的：
+Reducing contention in the block cache is more tricky than for kalloc, because bcache buffers are truly shared among processes (and thus CPUs). 
+For kalloc, one could eliminate most contention by giving each CPU its own allocator; that won't work for the block cache. 
+We suggest you look up block numbers in the cache with a hash table that has a lock per hash bucket.
+虽然这些资源确实是所有CPU共享的，但第一个lab可以获得其他CPU的分配空间，本质上不也是相当于共享吗？感觉思路是一样的，都是根据key（分别是id和blockno）来
+获得一条链，然后对链内和链间的资源进行操作。
+减少竞争的方法都是通过把大锁变成小锁。
