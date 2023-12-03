@@ -10,6 +10,8 @@ struct spinlock tickslock;
 uint ticks;
 
 extern char trampoline[], uservec[], userret[];
+extern uint pgref[];
+extern struct spinlock reflock;
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
@@ -33,6 +35,37 @@ trapinithart(void)
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
 //
+
+int CowHandler(uint64 va){
+  if(va >= MAXVA)
+    return -1;
+  pte_t *pte = walk(myproc()->pagetable, va, 0);
+  if(pte == 0 || (*pte & PTE_COW) == 0 || (*pte & PTE_V) == 0)
+    return -1;
+  acquire(&reflock);
+  uint cnt = pgref[PGINDEX(*pte)];
+  if(cnt == 1){
+    *pte &= ~PTE_COW;
+    *pte |= PTE_W;
+    release(&reflock);
+    return 0;
+  }
+  release(&reflock);
+  char* mem = kalloc();
+  if(mem == 0)
+    return -2;
+  uint64 pa = PTE2PA(*pte);
+  memmove(mem, (void*)pa, PGSIZE);
+
+  // !!!!!!!!!!!!!! dont use decref, or may cause kalloc return 0
+  // if A finds ref = 2, it will kalloc, before A decref, B find ref = 2, which also kalloc
+  //then ref get decreased twice and becomes 0, so it is dead.
+  kfree((void*)pa);
+
+  *pte = PA2PTE(mem) | PTE_W | PTE_FLAGS(*pte);
+  *pte &= ~PTE_COW;
+  return 0;
+}
 void
 usertrap(void)
 {
@@ -65,6 +98,13 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if(r_scause() == 15){
+    int err = CowHandler(r_stval());
+    if(err < 0){
+      printf("usertrap(): unexpected CowHandler err %p pid=%d\n", err, p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      setkilled(p);
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
