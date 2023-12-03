@@ -325,7 +325,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
-    if((*pte) & PTE_W){
+    if(((*pte) & PTE_W)||((*pte) & PTE_COW)){
       *pte &= (~PTE_W);
       *pte |= PTE_COW;
     }

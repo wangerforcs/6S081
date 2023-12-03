@@ -37,10 +37,8 @@ trapinithart(void)
 //
 
 int CowHandler(uint64 va){
-  if(va >= MAXVA)
-    return -1;
   pte_t *pte = walk(myproc()->pagetable, va, 0);
-  if(pte == 0 || (*pte & PTE_COW) == 0 || (*pte & PTE_V) == 0)
+  if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 || (*pte & PTE_COW) == 0)
     return -1;
   acquire(&reflock);
   uint cnt = pgref[PGINDEX(*pte)];
