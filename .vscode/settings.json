@@ -57,6 +57,10 @@
   "C_Cpp_Runner.useLinkTimeOptimization": false,
   "C_Cpp_Runner.msvcSecureNoWarnings": false,
   "files.associations": {
-    "stat.h": "c"
+    "stat.h": "c",
+    "buf.h": "c",
+    "fs.h": "c",
+    "sleeplock.h": "c",
+    "file.h": "c"
   }
 }

@@ -66,8 +66,8 @@ bget(uint dev, uint blockno)
   for(b = bcache.head.next; b != &bcache.head; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
       b->refcnt++;
-      release(&bcache.lock);
-      acquiresleep(&b->lock);
+      release(&bcache.lock); // this lock order may cause b->refcnt = 2 ,but it's ok.
+      acquiresleep(&b->lock);// up this will result only 1 of refcnt
       return b;
     }
   }
