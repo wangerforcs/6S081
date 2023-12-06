@@ -281,40 +281,6 @@ growproc(int n)
   return 0;
 }
 
-
-int copyvma(struct proc *p, struct proc *np){
-  for(int i=0;i<NVMA;i++){
-    np->vmamems[i] = p->vmamems[i];
-    if(p->vmamems[i].file){
-      filedup(p->vmamems[i].file);
-    }
-  }
-  return 0;
-  np->vmastart = p->vmastart;
-  for(int i=0;i<NVMA;i++){
-    if(np->vmamems[i].file){
-      if(np->vmamems[i].flags & MAP_PRIVATE){
-        for(uint64 begin = np->vmamems[i].start; begin < np->vmamems[i].start + np->vmamems[i].len; begin += PGSIZE){
-          pte_t *pte;
-          if((pte = walk(p->pagetable, begin, 0)) != 0){
-            if(*pte & PTE_V){
-              uint64 pa = (uint64)kalloc();
-              if(pa == 0){
-                return -1;
-              }
-              memmove((void*)pa, (void*)(PTE2PA(*pte)), PGSIZE);
-              if(mappages(np->pagetable, begin, PGSIZE, pa, PTE_FLAGS(*pte)) < 0){
-                return -1;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return 0;
-}
-
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
 int
@@ -336,7 +302,12 @@ fork(void)
     return -1;
   }
 
-  copyvma(p, np);
+  for(int i=0;i<NVMA;i++){
+    np->vmamems[i] = p->vmamems[i];
+    if(p->vmamems[i].file){
+      filedup(p->vmamems[i].file);
+    }
+  }
 
   np->sz = p->sz;
 
@@ -758,6 +729,7 @@ int munmap(uint64 addr, uint64 len){
         {
           uint64 r; 
           if((vmamems[i].flags & MAP_SHARED) &&*pte & PTE_D){
+            // 以下过程参考的file.c，虽然不知道这样判断的意义是什么
             begin_op();
             ilock(vmamems[i].file->ip);
             if((r=writei(vmamems[i].file->ip, 1, addr + finished, offset, PGSIZE))>0){

@@ -55,20 +55,5 @@
   "C_Cpp_Runner.useLeakSanitizer": false,
   "C_Cpp_Runner.showCompilationTime": false,
   "C_Cpp_Runner.useLinkTimeOptimization": false,
-  "C_Cpp_Runner.msvcSecureNoWarnings": false,
-  "files.associations": {
-    "user.h": "c",
-    "defs.h": "c",
-    "param.h": "c",
-    "memlayout.h": "c",
-    "riscv.h": "c",
-    "elf.h": "c",
-    "types.h": "c",
-    "spinlock.h": "c",
-    "syscall.h": "c",
-    "file.h": "c",
-    "proc.h": "c",
-    "fcntl.h": "c",
-    "fs.h": "c"
-  }
+  "C_Cpp_Runner.msvcSecureNoWarnings": false
 }
