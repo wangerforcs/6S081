@@ -39,12 +39,9 @@ int MapHandler(uint64 addr){
   uint64 va;
   
   for(;vmamems < p->vmamems + NVMA; vmamems++){
-    acquire(&vmamems->lock);
-    if(addr >= vmamems->start && addr < vmamems->start+vmamems->len){
-      release(&vmamems->lock);
+    if(vmamems->file && addr >= vmamems->start && addr < vmamems->start + vmamems->len){
       break;
     }
-    release(&vmamems->lock);
   }
   if(vmamems == NVMA + p->vmamems){
     return -1;
@@ -59,15 +56,12 @@ int MapHandler(uint64 addr){
   readi(vmamems->file->ip, 0, mem, vmamems->offset + (va - vmamems->start), PGSIZE);
   iunlock(vmamems->file->ip);
   int flags = PTE_U;
-  if(vmamems->prot & PROT_WRITE){
+  if(vmamems->prot & PROT_WRITE)
     flags |= PTE_W;
-  }
-  if(vmamems->prot & PROT_READ){
+  if(vmamems->prot & PROT_READ)
     flags |= PTE_R;
-  }
-  if(vmamems->prot & PROT_EXEC){
+  if(vmamems->prot & PROT_EXEC)
     flags |= PTE_X;
-  }
   if(mappages(p->pagetable, va, PGSIZE, mem, flags) != 0){
     kfree((void*)mem);
     return -1;
@@ -113,7 +107,6 @@ usertrap(void)
     syscall();
   } else if(r_scause() == 15 || r_scause() == 13){
     // page fault
-    
     if(MapHandler(r_stval()) < 0){
       printf("usertrap(): unexpected page fault addr=%p pid=%d\n", r_stval(), p->pid);
       printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

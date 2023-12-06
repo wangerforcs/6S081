@@ -21,7 +21,7 @@ struct spinlock pid_lock;
 
 extern void forkret(void);
 static void freeproc(struct proc *p);
-
+extern int MapHandler(uint64 addr);
 extern char trampoline[]; // trampoline.S
 
 // helps ensure that wakeups of wait()ing
@@ -60,8 +60,7 @@ procinit(void)
     p->state = UNUSED;
     p->kstack = KSTACK((int) (p - proc));
     for(int i=0;i<NVMA;i++){
-      initlock(&p->vmamems[i].lock, "vma");
-      p->vmamems[i].file=0;
+      p->vmastart = TRAPFRAME;
     }
   }
 }
@@ -282,6 +281,40 @@ growproc(int n)
   return 0;
 }
 
+
+int copyvma(struct proc *p, struct proc *np){
+  for(int i=0;i<NVMA;i++){
+    np->vmamems[i] = p->vmamems[i];
+    if(p->vmamems[i].file){
+      filedup(p->vmamems[i].file);
+    }
+  }
+  return 0;
+  np->vmastart = p->vmastart;
+  for(int i=0;i<NVMA;i++){
+    if(np->vmamems[i].file){
+      if(np->vmamems[i].flags & MAP_PRIVATE){
+        for(uint64 begin = np->vmamems[i].start; begin < np->vmamems[i].start + np->vmamems[i].len; begin += PGSIZE){
+          pte_t *pte;
+          if((pte = walk(p->pagetable, begin, 0)) != 0){
+            if(*pte & PTE_V){
+              uint64 pa = (uint64)kalloc();
+              if(pa == 0){
+                return -1;
+              }
+              memmove((void*)pa, (void*)(PTE2PA(*pte)), PGSIZE);
+              if(mappages(np->pagetable, begin, PGSIZE, pa, PTE_FLAGS(*pte)) < 0){
+                return -1;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
 int
@@ -303,11 +336,7 @@ fork(void)
     return -1;
   }
 
-  for(int i=0;i<NVMA;i++){
-    np->vmamems[i] = p->vmamems[i];
-    if(np->vmamems[i].file)
-      filedup(np->vmamems[i].file);
-  }
+  copyvma(p, np);
 
   np->sz = p->sz;
 
@@ -714,23 +743,21 @@ int munmap(uint64 addr, uint64 len){
   struct proc * p = myproc();
   struct vma* vmamems = p->vmamems;
   for(i=0;i<NVMA;i++){
-    acquire(&vmamems[i].lock);
     if(vmamems[i].file && vmamems[i].start == addr){
       if(len > vmamems[i].len){
-        release(&vmamems[i].lock);
         return -1;
       }
       uint64 offset = vmamems[i].offset;
-      if(vmamems[i].flags & MAP_SHARED){
-        release(&vmamems[i].lock);
-        uint64 finished = 0;
-        pte_t *pte;
-        while(finished < len){
-          if((pte = walk(p->pagetable, addr + finished, 0)) == 0){
-            return -1;
-          }
+      uint64 finished = 0;
+      pte_t *pte;
+      while(finished < len){
+        if((pte = walk(p->pagetable, addr + finished, 0)) == 0){
+          return -1;
+        }
+        if(*pte & PTE_V)
+        {
           uint64 r; 
-          if(*pte & PTE_D){
+          if((vmamems[i].flags & MAP_SHARED) &&*pte & PTE_D){
             begin_op();
             ilock(vmamems[i].file->ip);
             if((r=writei(vmamems[i].file->ip, 1, addr + finished, offset, PGSIZE))>0){
@@ -742,29 +769,22 @@ int munmap(uint64 addr, uint64 len){
               break;
             }
           }
-          if(*pte & PTE_V)
-            uvmunmap(p->pagetable, addr + finished, 1, 1);
-          finished+=PGSIZE;
+          uvmunmap(p->pagetable, addr + finished, 1, 1);
         }
-        if(finished != len){
-          return -1;
-        }
-        acquire(&vmamems[i].lock);
+        finished+=PGSIZE;
+      }
+      if(finished != len){
+        return -1;
       }
       vmamems[i].start += len;
       vmamems[i].len -= len;
       vmamems[i].offset = offset;
       if(vmamems[i].len == 0){
-        release(&vmamems[i].lock);
-        // panic: sched locks
         fileclose(vmamems[i].file);
-        acquire(&vmamems[i].lock);
         vmamems[i].file=0;
       }
-      release(&vmamems[i].lock);
       break;
     }
-    release(&vmamems[i].lock);
   }
   if(i >= NVMA){
     return -1;
@@ -777,10 +797,12 @@ uint64 mmap(uint64 addr, uint64 len, int prot, int flags, int fd, uint64 offset)
   int i;
   struct vma* vmamems;
   struct proc* p=myproc();
-  if(p->ofile[fd] == 0){
+  struct file* file = p->ofile[fd];
+  
+  if(file == 0){
     return -1;
   }
-  if(p->ofile[fd]->readable == 0){
+  if((prot & PROT_READ) && file->readable == 0){
     return -1;
   }
   if((prot & PROT_WRITE) && p->ofile[fd]->writable == 0 && !(flags & MAP_PRIVATE)){
@@ -788,30 +810,27 @@ uint64 mmap(uint64 addr, uint64 len, int prot, int flags, int fd, uint64 offset)
   }
   len = PGROUNDUP(len);
   if(addr == 0){
-    acquire(&p->lock);
-    addr=p->sz;
-    p->sz += len;
-    release(&p->lock);
+    addr = p->vmastart - len;
   }
   vmamems=p->vmamems;
 
   for(i=0;i<NVMA;i++){
-    acquire(&vmamems[i].lock);
     if(vmamems[i].file == 0){
-      vmamems[i].start=addr;
-      vmamems[i].len=len;
-      vmamems[i].offset=offset;
-      vmamems[i].prot=prot;
-      vmamems[i].flags=flags;
-      vmamems[i].file=p->ofile[fd];
-      filedup(vmamems[i].file);
-      release(&vmamems[i].lock);
       break;
     }
-    release(&vmamems[i].lock);
   }
+
   if(i >= NVMA){
     return -1;
   }
+
+  vmamems[i].start=addr;
+  vmamems[i].len=len;
+  vmamems[i].offset=offset;
+  vmamems[i].prot=prot;
+  vmamems[i].flags=flags;
+  vmamems[i].file=p->ofile[fd];
+  p->vmastart = addr;
+  filedup(vmamems[i].file);
   return addr;
 }
