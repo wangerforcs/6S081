@@ -5,6 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -52,9 +56,13 @@ procinit(void)
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
-      initlock(&p->lock, "proc");
-      p->state = UNUSED;
-      p->kstack = KSTACK((int) (p - proc));
+    initlock(&p->lock, "proc");
+    p->state = UNUSED;
+    p->kstack = KSTACK((int) (p - proc));
+    for(int i=0;i<NVMA;i++){
+      initlock(&p->vmamems[i].lock, "vma");
+      p->vmamems[i].file=0;
+    }
   }
 }
 
@@ -294,6 +302,13 @@ fork(void)
     release(&np->lock);
     return -1;
   }
+
+  for(int i=0;i<NVMA;i++){
+    np->vmamems[i] = p->vmamems[i];
+    if(np->vmamems[i].file)
+      filedup(np->vmamems[i].file);
+  }
+
   np->sz = p->sz;
 
   // copy saved user registers.
@@ -350,6 +365,12 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+
+  for(int i=0;i<NVMA;i++){
+    if(p->vmamems[i].file){
+      munmap(p->vmamems[i].start, p->vmamems[i].len);
+    }
+  }
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
@@ -685,4 +706,112 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+
+int munmap(uint64 addr, uint64 len){
+  int i;
+  struct proc * p = myproc();
+  struct vma* vmamems = p->vmamems;
+  for(i=0;i<NVMA;i++){
+    acquire(&vmamems[i].lock);
+    if(vmamems[i].file && vmamems[i].start == addr){
+      if(len > vmamems[i].len){
+        release(&vmamems[i].lock);
+        return -1;
+      }
+      uint64 offset = vmamems[i].offset;
+      if(vmamems[i].flags & MAP_SHARED){
+        release(&vmamems[i].lock);
+        uint64 finished = 0;
+        pte_t *pte;
+        while(finished < len){
+          if((pte = walk(p->pagetable, addr + finished, 0)) == 0){
+            return -1;
+          }
+          uint64 r; 
+          if(*pte & PTE_D){
+            begin_op();
+            ilock(vmamems[i].file->ip);
+            if((r=writei(vmamems[i].file->ip, 1, addr + finished, offset, PGSIZE))>0){
+              offset += r;
+            }
+            iunlock(vmamems[i].file->ip);
+            end_op();
+            if(r != PGSIZE){
+              break;
+            }
+          }
+          if(*pte & PTE_V)
+            uvmunmap(p->pagetable, addr + finished, 1, 1);
+          finished+=PGSIZE;
+        }
+        if(finished != len){
+          return -1;
+        }
+        acquire(&vmamems[i].lock);
+      }
+      vmamems[i].start += len;
+      vmamems[i].len -= len;
+      vmamems[i].offset = offset;
+      if(vmamems[i].len == 0){
+        release(&vmamems[i].lock);
+        // panic: sched locks
+        fileclose(vmamems[i].file);
+        acquire(&vmamems[i].lock);
+        vmamems[i].file=0;
+      }
+      release(&vmamems[i].lock);
+      break;
+    }
+    release(&vmamems[i].lock);
+  }
+  if(i >= NVMA){
+    return -1;
+  }
+  return 0;
+}
+
+
+uint64 mmap(uint64 addr, uint64 len, int prot, int flags, int fd, uint64 offset){
+  int i;
+  struct vma* vmamems;
+  struct proc* p=myproc();
+  if(p->ofile[fd] == 0){
+    return -1;
+  }
+  if(p->ofile[fd]->readable == 0){
+    return -1;
+  }
+  if((prot & PROT_WRITE) && p->ofile[fd]->writable == 0 && !(flags & MAP_PRIVATE)){
+    return -1;
+  }
+  len = PGROUNDUP(len);
+  if(addr == 0){
+    acquire(&p->lock);
+    addr=p->sz;
+    p->sz += len;
+    release(&p->lock);
+  }
+  vmamems=p->vmamems;
+
+  for(i=0;i<NVMA;i++){
+    acquire(&vmamems[i].lock);
+    if(vmamems[i].file == 0){
+      vmamems[i].start=addr;
+      vmamems[i].len=len;
+      vmamems[i].offset=offset;
+      vmamems[i].prot=prot;
+      vmamems[i].flags=flags;
+      vmamems[i].file=p->ofile[fd];
+      filedup(vmamems[i].file);
+      release(&vmamems[i].lock);
+      break;
+    }
+    release(&vmamems[i].lock);
+  }
+  if(i >= NVMA){
+    return -1;
+  }
+  return addr;
 }
