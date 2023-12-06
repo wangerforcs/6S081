@@ -761,6 +761,13 @@ int munmap(uint64 addr, uint64 len){
   if(i >= NVMA){
     return -1;
   }
+  uint64 vmastart = TRAPFRAME;
+  for(int i=0;i<NVMA;i++){
+    if(vmamems[i].file != 0){
+      vmastart = (vmastart > vmamems[i].start) ? vmamems[i].start : vmastart;
+    }
+  }
+  p->vmastart = vmastart;
   return 0;
 }
 
