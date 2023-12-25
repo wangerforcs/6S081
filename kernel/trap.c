@@ -177,6 +177,7 @@ void
 clockintr()
 {
   acquire(&tickslock);
+  // printf("%d %d\n",cpuid(),ticks);
   ticks++;
   wakeup(&ticks);
   release(&tickslock);
@@ -217,7 +218,7 @@ devintr()
   } else if(scause == 0x8000000000000001L){
     // software interrupt from a machine-mode timer interrupt,
     // forwarded by timervec in kernelvec.S.
-
+    // printf("cpu: %d\n",cpuid());
     if(cpuid() == 0){
       clockintr();
     }
